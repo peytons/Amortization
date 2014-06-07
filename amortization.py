@@ -3,6 +3,15 @@ from decimal import Decimal
 
 ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
 
+def _typeless_round(n):
+    if not ROUNDING_PAYMENTS:
+        return n
+    try:
+        return n.quantize(ROUNDING_PAYMENTS)
+    except AttributeError: # backward compatibility for floats
+        import math
+        return round(n, int(-math.log10(ROUNDING_PAYMENTS)))
+
 def pmt(rate, nper, pv, typ=0):
     
     if rate < 0 or nper < 0 or pv < 0:
@@ -11,13 +20,7 @@ def pmt(rate, nper, pv, typ=0):
     payment = (pv * rate) / (1 - (1 + rate)**(-nper))
     if typ: 
         payment /= (1 + rate)
-    try:
-        payment = payment.quantize(ROUNDING_PAYMENTS)
-    except AttributeError: # backward compatibility for floats
-        import math
-        payment = round(payment, int(-math.log10(ROUNDING_PAYMENTS)))
-    return payment
-
+    return _typeless_round(payment)
 
 def presentValueOfAnnuity(cflw, rate, nper):
     return cflw * ((1 - (1 + rate)**(-nper)) / rate)
