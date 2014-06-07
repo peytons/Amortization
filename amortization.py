@@ -1,13 +1,15 @@
 import datetime
 from decimal import Decimal
+import decimal
 
 ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
+ROUNDING_METHOD   = decimal.ROUND_HALF_UP
 
 def _typeless_round(n):
     if not ROUNDING_PAYMENTS:
         return n
     try:
-        return n.quantize(ROUNDING_PAYMENTS)
+        return n.quantize(ROUNDING_PAYMENTS, rounding=ROUNDING_METHOD)
     except AttributeError: # backward compatibility for floats
         import math
         return round(n, int(-math.log10(ROUNDING_PAYMENTS)))
@@ -32,11 +34,15 @@ def schedule(rate, nper, pv, typ=0):
     periods = []
     totalInterest = 0
     for period in range(nper):
-        interest = rate * pv
-        principal = payment - interest
+        interest = _typeless_round(rate * pv)
+        if period == nper-1:  # last payment
+            payment = pv + interest
+            principal = pv
+        else:
+            principal = payment - interest
         pv -= principal
 
-        newPeriod = Period(interest, principal, pv)
+        newPeriod = Period(interest, principal, pv, payment)
         periods.append(newPeriod)
     return periods
 
@@ -116,18 +122,19 @@ class Period:
         else: print("date must be a datetime.date object")
     
 
-    def __init__(self, interest, principal, balance, date=None):
+    def __init__(self, interest, principal, balance, payment, date=None):
         self.interest = interest
         self.principal = principal
         self.balance = balance
         self.date = date
+        self.payment = payment
 
     def __str__(self):
         if self.date:
-            return str('%15s   Interest: %7.2f   Principal: %7.2f   Balance: %7.2f' %
-                  (monthAndYearStr(self.date), self.interest, self.principal, self.balance))
-        return str('Interest: %7.2f   Principal: %7.2f   Balance: %7.2f' %
-                  (self.interest, self.principal, self.balance))
+            return str('%15s   Payment: %7.2f   Interest: %7.2f   Principal: %7.2f   Balance: %7.2f' %
+                  (monthAndYearStr(self.date), self.payment, self.interest, self.principal, self.balance))
+        return str('Payment: %7.2f   Interest: %7.2f   Principal: %7.2f   Balance: %7.2f' %
+                  (self.payment, self.interest, self.principal, self.balance))
 
     def monthAndYearStr(self):
         return monthAndYearStr(self.date)
@@ -203,9 +210,9 @@ class Loan:
     def period(self, period): 
         payment = pmt(self.rate, self.nper, self.pv, self.typ)
         remainingPeriods = self.nper - period 
-        
+
         pv = presentValueOfAnnuity(payment, self.rate, remainingPeriods)
-        
+
         ## the interest and principal are based upon the prior period ((self.nper + 1) - period)
         priorPv = presentValueOfAnnuity(payment, self.rate, remainingPeriods + 1)
         interest = self.rate * priorPv 
@@ -213,9 +220,9 @@ class Loan:
 
         if self.date:
             date = self.dateForPeriod(period)
-            period = Period(interest, principal, pv, date)
+            period = Period(interest, principal, pv, payment, date)
         else:
-            period = Period(interest, principal, pv)
+            period = Period(interest, principal, pv, payment)
             
         return period
 
