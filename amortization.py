@@ -193,6 +193,7 @@ class Loan:
         self.pv = pv
         self.date = date
         self.typ = typ
+        self.periods = []
         
     def __str__(self):
         if self.date:
@@ -208,32 +209,20 @@ class Loan:
 ## this can be one function
 
     def period(self, period): 
-        payment = pmt(self.rate, self.nper, self.pv, self.typ)
-        remainingPeriods = self.nper - period 
-
-        pv = presentValueOfAnnuity(payment, self.rate, remainingPeriods)
-
-        ## the interest and principal are based upon the prior period ((self.nper + 1) - period)
-        priorPv = presentValueOfAnnuity(payment, self.rate, remainingPeriods + 1)
-        interest = self.rate * priorPv 
-        principal = payment - interest
-
-        if self.date:
-            date = self.dateForPeriod(period)
-            period = Period(interest, principal, pv, payment, date)
-        else:
-            period = Period(interest, principal, pv, payment)
-            
-        return period
-
+        try:
+            return self.periods[period-1]
+        except IndexError:
+            self.periods = schedule(self.rate, self.nper, self.pv, self.date, self.typ)
+        ## if we have a starting date, re-init all periods with each date
+        return self.periods[period-1]
 
     def schedule(self, startPeriod=1, endPeriod=None):
         periods = []
-        
+
         if not endPeriod:
             endPeriod = self.nper
-            
-        period = startPeriod    
+
+        period = startPeriod
         while period <= endPeriod:
             periods.append(self.period(period))
             period += 1
@@ -277,6 +266,12 @@ class Loan:
         if not endPeriod:
             endPeriod = self.nper
 
+        for n in range(startPeriod, endPeriod+1):
+            print "Period %3d   %s" % (n, self.period(n))
+
+        return
+
+        # dead code -- left until dates are handled in schedule
         if self.date:
             while period <= endPeriod:
                 currentPeriod = self.period(period)
