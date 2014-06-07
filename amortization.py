@@ -212,8 +212,13 @@ class Loan:
         try:
             return self.periods[period-1]
         except IndexError:
-            self.periods = schedule(self.rate, self.nper, self.pv, self.date, self.typ)
-        ## if we have a starting date, re-init all periods with each date
+            self.periods = schedule(self.rate, self.nper, self.pv, self.typ)
+        if self.date:
+            for n in range(self.nper):
+                old = self.periods[n]
+                newdate = self.dateForPeriod(n)
+                self.periods[n] = Period(old.interest, old.principal, old.balance, old.payment, newdate)
+
         return self.periods[period-1]
 
     def schedule(self, startPeriod=1, endPeriod=None):
