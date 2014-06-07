@@ -2,8 +2,18 @@ import datetime
 from decimal import Decimal
 import decimal
 
+DAILY_COMPOUNDING = "DAILY_COMPOUNDING"      # uses Actual / 360 method
+MONTHLY_COMPOUNDING = "MONTHLY_COMPOUNDING"  # equal rate each month
+SEMIMONTHLY_COMPOUNDING = "SEMIMONTHLY_COMPOUNDING" # equal rate each half-month
+
+MONTHLY_BILLING = "MONTHLY_BILLING"
+SEMIMONTHLY_BILLING = "SEMIMONTHLY_BILLING"
+
 ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
 ROUNDING_METHOD   = decimal.ROUND_HALF_UP
+
+COMPOUNDING_PERIOD = SEMIMONTHLY_COMPOUNDING
+BILLING_PERIOD     = SEMIMONTHLY_BILLING
 
 def _typeless_round(n):
     if not ROUNDING_PAYMENTS:
@@ -15,17 +25,35 @@ def _typeless_round(n):
         return round(n, int(-math.log10(ROUNDING_PAYMENTS)))
 
 def pmt(rate, nper, pv, typ=0):
-    
     if rate < 0 or nper < 0 or pv < 0:
         Except("rate, nper and pv must be > 0")
     
-    payment = (pv * rate) / (1 - (1 + rate)**(-nper))
+    if BILLING_PERIOD == MONTHLY_BILLING:
+        per_rate = rate/12
+    elif BILLING_PERIOD == SEMIMONTHLY_BILLING:
+        per_rate = rate/24
+
+    payment = (pv * per_rate) / (1 - (1 + per_rate)**(-nper))
     if typ: 
-        payment /= (1 + rate)
+        payment /= (1 + per_rate)
     return _typeless_round(payment)
 
 def presentValueOfAnnuity(cflw, rate, nper):
     return cflw * ((1 - (1 + rate)**(-nper)) / rate)
+
+def calculate_interest(rate, base, start_date=None, end_date=None):
+    if (COMPOUNDING_PERIOD == MONTHLY_COMPOUNDING and
+            BILLING_PERIOD == MONTHLY_BILLING):
+        return _typeless_round((rate/12) * base)
+    if (COMPOUNDING_PERIOD == SEMIMONTHLY_COMPOUNDING and
+            BILLING_PERIOD == SEMIMONTHLY_BILLING):
+        return _typeless_round((rate/24) * base)
+    if COMPOUNDING_PERIOD == DAILY_COMPOUNDING:
+        days_elapsed = (end_date - start_date).days
+        interest = (((rate/360)+1)**(days_elapsed) * base) - base
+        return _typeless_round(interest)
+
+    raise Exception("Unsupported Compounding Period / Billing Period combo")
 
 
 def schedule(rate, nper, pv, typ=0):
@@ -34,7 +62,7 @@ def schedule(rate, nper, pv, typ=0):
     periods = []
     totalInterest = 0
     for period in range(nper):
-        interest = _typeless_round(rate * pv)
+        interest = calculate_interest(rate, pv)
         if period == nper-1:  # last payment
             payment = pv + interest
             principal = pv
@@ -44,6 +72,7 @@ def schedule(rate, nper, pv, typ=0):
 
         newPeriod = Period(interest, principal, pv, payment)
         periods.append(newPeriod)
+
     return periods
 
 ## these two functions feel like they belong somewhere.. like a subclass of datetime or something
@@ -67,7 +96,21 @@ def formatDate(date):
         return date.strftime("%B, %Y")
     return date.isoformat()
 
+def nextHalfMonth(date):
+    year = date.year
+    month = date.month
+    day  = date.day
+   
+    day = 15 if day == 1 else 1
+    if day == 1:
+        month += 1
+    if month == 13:
+        month = 1
+        year += 1
         
+    return datetime.date(year, month, day)
+
+##########
 
 class Period:
 
@@ -169,13 +212,14 @@ class Loan:
         else: print("typ must be 0 or 1")
 
         
-    def __init__(self, rate, nper, pv, date=None, typ=0):
+    def __init__(self, rate, nper, pv, date=None, payment=None, typ=0):
         self.rate = rate
         self.nper = nper
         self.pv = pv
         self.date = date
         self.typ = typ
         self.periods = []
+        self.payment = payment
         
     def __str__(self):
         if self.date:
@@ -186,7 +230,7 @@ class Loan:
 
 
     def pmt(self):
-        return pmt(self.rate, self.nper, self.pv, self.typ)
+        return self.payment or pmt(self.rate, self.nper, self.pv, self.typ)
 
 ## this can be one function
 
@@ -194,7 +238,7 @@ class Loan:
         try:
             return self.periods[period-1]
         except IndexError:
-            self.periods = schedule(self.rate, self.nper, self.pv, self.typ)
+            self.periods = self.fullSchedule()
         if self.date:
             for n in range(self.nper):
                 old = self.periods[n]
@@ -213,6 +257,27 @@ class Loan:
         while period <= endPeriod:
             periods.append(self.period(period))
             period += 1
+
+        return periods
+
+    def fullSchedule(self):
+        payment = self.pmt()
+        date    = self.date
+        pv      = self.pv
+
+        periods = []
+        totalInterest = 0
+        for period in range(1, self.nper+1):
+            interest = calculate_interest(self.rate, pv, self.dateForPeriod(period-1), self.dateForPeriod(period))
+            if period == self.nper:  # last payment
+                payment = pv + interest
+                principal = pv
+            else:
+                principal = payment - interest
+            pv -= principal
+
+            newPeriod = Period(interest, principal, pv, payment, self.dateForPeriod(period))
+            periods.append(newPeriod)
 
         return periods
 
@@ -237,16 +302,22 @@ class Loan:
 
     def dateForPeriod(self, period):
         if not self.date:
-            print('No starting date entered')
-            return
+            return None
         
         date = self.date
-        i = 1
-        while i < period:
-            date = nextMonth(date)
-            i += 1
-        return date
-    
+        i = 0
+        if BILLING_PERIOD == MONTHLY_BILLING:
+            while i < period:
+                date = nextMonth(date)
+                i += 1
+            return date
+        elif BILLING_PERIOD == SEMIMONTHLY_BILLING:
+            while i < period:
+                date = nextHalfMonth(date)
+                i += 1
+            return date
+        raise("Unsupported Billing Period")
+
 
     def printSchedule(self, startPeriod=1, endPeriod=None):
         period = startPeriod
@@ -277,13 +348,14 @@ class Loan:
         return self.totalInterest() - self.interestPaidSincePeriod(period)
     
     def interestPaidSincePeriod(self, period):
-         payment = pmt(self.rate, self.nper, self.pv, self.typ)
+         payment = self.pmt()
          totalPaidThusFar = payment * period
          
          return totalPaidThusFar - self.principalPaidSincePeriod(period)
 
     def principalRemainingAfterPeriod(self, period):
-        payment = pmt(self.rate, self.nper, self.pv, self.typ)
+        # broken
+        payment = self.pmt()
         remainingPeriods = self.nper - period
         
         return presentValueOfAnnuity(payment, self.rate, remainingPeriods)
@@ -293,16 +365,19 @@ class Loan:
         return self.pv - self.principalRemainingAfterPeriod(period)
         
     def totalCost(self):
+        # broken
         return pmt(self.rate, self.nper, self.pv, self.typ) * self.nper
 
     def totalInterest(self):
         return self.totalCost() - self.pv
 
     def totalPaidSincePeriod(self, period):
-        payment = pmt(self.rate, self.nper, self.pv, self.typ)
+        # broken
+        payment = self.pmt()
         return payment * period
 
     def totalRemainingAfterPeriod(self, period):
+        # brokne
         return self.totalCost() - self.totalPaidSincePeriod(period)
 
     def payOffDate(self):
