@@ -1,19 +1,21 @@
 import datetime
+from decimal import Decimal
+
+ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
 
 def pmt(rate, nper, pv, typ=0):
     
-    try:
-        if rate < 0 or nper < 0 or pv < 0:
-            print("rate, nper and pv must be > 0")
-            return
-        
-        payment = (pv * rate) / (1 - (1 + rate)**(-nper))
-        if typ: 
-            payment /= (1 + rate)
-        return payment
+    if rate < 0 or nper < 0 or pv < 0:
+        Except("rate, nper and pv must be > 0")
     
-    except Exception as e:
-        print(e)
+    payment = (pv * rate) / (1 - (1 + rate)**(-nper))
+    if typ: 
+        payment /= (1 + rate)
+    try:
+        payment = payment.quantize(ROUNDING_PAYMENTS)
+    except AttributeError: # backward compatibility for floats
+        payment = round(payment, int(-math.log10(ROUNDING_PAYMENTS)))
+    return payment
 
 
 def presentValueOfAnnuity(cflw, rate, nper):
