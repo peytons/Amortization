@@ -62,26 +62,9 @@ def nextMonth(date):
     except Exception as e:
         print(e)
 
-def monthAndYearStr(date):
-    monthAsStr = { 1  : 'January',
-                   2  : 'February',
-                   3  : 'March',
-                   4  : 'April',
-                   5  : 'May',
-                   6  : 'June',
-                   7  : 'July',
-                   8  : 'August',
-                   9  : 'September',
-                   10 : 'October',
-                   11 : 'November', 
-                   12 : 'December' } 
-    try:
-        return str('%s, %d' % (monthAsStr[date.month], date.year))
-    except AttributeError:
-        print('Must be a datetime.date object')
-    except Exception as e:
-        print(e)
-##########
+def formatDate(date):
+    return date.strftime("%B, %Y")
+
         
 
 class Period:
@@ -132,12 +115,9 @@ class Period:
     def __str__(self):
         if self.date:
             return str('%15s   Payment: %7.2f   Interest: %7.2f   Principal: %7.2f   Balance: %7.2f' %
-                  (monthAndYearStr(self.date), self.payment, self.interest, self.principal, self.balance))
+                  (formatDate(self.date), self.payment, self.interest, self.principal, self.balance))
         return str('Payment: %7.2f   Interest: %7.2f   Principal: %7.2f   Balance: %7.2f' %
                   (self.payment, self.interest, self.principal, self.balance))
-
-    def monthAndYearStr(self):
-        return monthAndYearStr(self.date)
 
 
 
@@ -198,7 +178,7 @@ class Loan:
     def __str__(self):
         if self.date:
             return str('%15s   Rate: %g   Nper: %g   Pv: %g   Typ: %g' %
-                       (monthAndYearStr(self.date), self.rate, self.nper, self.pv, self.typ))
+                       (formatDate(self.date), self.rate, self.nper, self.pv, self.typ))
         return str('Rate: %g   Nper: %g   Pv: %g   Typ: %g' %
                    (self.rate, self.nper, self.pv, self.typ))
 
@@ -324,5 +304,5 @@ class Loan:
         return self.totalCost() - self.totalPaidSincePeriod(period)
 
     def payOffDate(self):
-        return monthAndYearStr(self.period(self.nper).date)
+        return formatDate(self.period(self.nper).date)
     
