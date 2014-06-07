@@ -14,6 +14,7 @@ def pmt(rate, nper, pv, typ=0):
     try:
         payment = payment.quantize(ROUNDING_PAYMENTS)
     except AttributeError: # backward compatibility for floats
+        import math
         payment = round(payment, int(-math.log10(ROUNDING_PAYMENTS)))
     return payment
 
