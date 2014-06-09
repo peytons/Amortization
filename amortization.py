@@ -42,6 +42,8 @@ def presentValueOfAnnuity(cflw, rate, nper):
     return cflw * ((1 - (1 + rate)**(-nper)) / rate)
 
 def calculate_interest(rate, base, start_date=None, end_date=None):
+    """ Calculate interest for stated (yearly) interest rate "rate"
+        according to static variables defining method """
     if (COMPOUNDING_PERIOD == MONTHLY_COMPOUNDING and
             BILLING_PERIOD == MONTHLY_BILLING):
         return _typeless_round((rate/12) * base)
@@ -211,7 +213,7 @@ class Loan:
             self._typ = typ
         else: print("typ must be 0 or 1")
 
-        
+    # Note that rate here is stated annual interest rate.
     def __init__(self, rate, nper, pv, date=None, payment=None, typ=0):
         self.rate = rate
         self.nper = nper
