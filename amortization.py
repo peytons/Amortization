@@ -101,7 +101,7 @@ def nextHalfMonth(date):
     month = date.month
     day  = date.day
    
-    day = 15 if day == 1 else 1
+    day = 16 if day == 1 else 1
     if day == 1:
         month += 1
     if month == 13:
@@ -239,11 +239,6 @@ class Loan:
             return self.periods[period-1]
         except IndexError:
             self.periods = self.fullSchedule()
-        if self.date:
-            for n in range(self.nper):
-                old = self.periods[n]
-                newdate = self.dateForPeriod(n)
-                self.periods[n] = Period(old.interest, old.principal, old.balance, old.payment, newdate)
 
         return self.periods[period-1]
 
