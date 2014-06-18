@@ -342,31 +342,27 @@ class Loan:
 
 ## can make these work with period OR dates simply by if datetime.date then find periodForDate bada bing bada boom
     def interestRemainingAfterPeriod(self, period):
+        #BROKEN
         return self.totalInterest() - self.interestPaidSincePeriod(period)
     
     def interestPaidSincePeriod(self, period):
+        #BROKEN
          payment = self.pmt()
          totalPaidThusFar = payment * period
          
          return totalPaidThusFar - self.principalPaidSincePeriod(period)
 
     def principalRemainingAfterPeriod(self, period):
-        # broken
-        payment = self.pmt()
-        remainingPeriods = self.nper - period
-        
-        return presentValueOfAnnuity(payment, self.rate, remainingPeriods)
+        return self.period(period).balance
 
-    
     def principalPaidSincePeriod(self, period):
         return self.pv - self.principalRemainingAfterPeriod(period)
-        
+
     def totalCost(self):
-        # broken
-        return pmt(self.rate, self.nper, self.pv, self.typ) * self.nper
+        return sum([p.payment for p in self.schedule()])
 
     def totalInterest(self):
-        return self.totalCost() - self.pv
+        return sum([p.interest for p in self.schedule()])
 
     def totalPaidSincePeriod(self, period):
         # broken
@@ -379,4 +375,4 @@ class Loan:
 
     def payOffDate(self):
         return formatDate(self.period(self.nper).date)
-    
+
