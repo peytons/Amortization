@@ -46,10 +46,10 @@ def calculate_interest(rate, base, start_date=None, end_date=None):
         according to static variables defining method """
     if (COMPOUNDING_PERIOD == MONTHLY_COMPOUNDING and
             BILLING_PERIOD == MONTHLY_BILLING):
-        return _typeless_round((rate/12) * base)
+        return _typeless_round(rate * base / 12)
     if (COMPOUNDING_PERIOD == SEMIMONTHLY_COMPOUNDING and
             BILLING_PERIOD == SEMIMONTHLY_BILLING):
-        return _typeless_round((rate/24) * base)
+        return _typeless_round(rate * base / 24)
     if COMPOUNDING_PERIOD == DAILY_COMPOUNDING:
         days_elapsed = (end_date - start_date).days
         interest = (((rate/360)+1)**(days_elapsed) * base) - base
