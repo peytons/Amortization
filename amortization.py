@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 import decimal
+import logging
 
 ACTUAL_360_COMPOUNDING = "ACTUAL_360_COMPOUNDING"       # uses Actual / 360 method
 ACTUAL_ACTUAL_COMPOUNDING = "ACTUAL_ACTUAL_COMPOUNDING" # uses Actual / Actual method
@@ -248,8 +249,30 @@ class Loan:
                    (self.rate, self.nper, self.pv, self.typ))
 
 
+    def _calc_pmt_diff_(self, pmt):
+        """ Difference between last payment and penultimate payment """
+        l = Loan(self.rate, self.nper, self.pv, self.date, payment=pmt)
+        return l.period(l.nper).payment - l.period(l.nper-1).payment
+
     def pmt(self):
-        return self.payment or pmt(self.rate, self.nper, self.pv, self.typ)
+        if self.payment:
+            return self.payment
+
+        # Newton's method? Or something like it.
+        start = pmt(self.rate, self.nper, self.pv, self.typ)
+        diff = self._calc_pmt_diff_(start)
+        iterations = 0
+        while iterations < 50 and abs(diff * 50) > self.nper:
+            # iterate until payment would change by less than 0.02 or
+            # until 50 iterations.
+            iterations += 1
+            start += diff / self.nper
+            start = _typeless_round(start)
+            diff = self._calc_pmt_diff_(start)
+        if iterations == 50:
+            logging.warning("Reached 50 iterations when calculating payment.")
+        self.payment = start
+        return start
 
 ## this can be one function
 
