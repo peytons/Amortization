@@ -375,4 +375,4 @@ class Loan:
 
     def payOffDate(self):
         return formatDate(self.period(self.nper).date)
-
+    
