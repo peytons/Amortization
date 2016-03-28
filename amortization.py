@@ -2,7 +2,8 @@ import datetime
 from decimal import Decimal
 import decimal
 
-DAILY_COMPOUNDING = "DAILY_COMPOUNDING"      # uses Actual / 360 method
+ACTUAL_360_COMPOUNDING = "ACTUAL_360_COMPOUNDING"       # uses Actual / 360 method
+ACTUAL_ACTUAL_COMPOUNDING = "ACTUAL_ACTUAL_COMPOUNDING" # uses Actual / Actual method
 MONTHLY_COMPOUNDING = "MONTHLY_COMPOUNDING"  # equal rate each month
 SEMIMONTHLY_COMPOUNDING = "SEMIMONTHLY_COMPOUNDING" # equal rate each half-month
 
@@ -41,19 +42,35 @@ def pmt(rate, nper, pv, typ=0):
 def presentValueOfAnnuity(cflw, rate, nper):
     return cflw * ((1 - (1 + rate)**(-nper)) / rate)
 
+def _cast_(castme, typed):
+    if isinstance(typed, Decimal):
+        return Decimal(castme)
+    else:
+        return float(castme)
+
 def calculate_interest(rate, base, start_date=None, end_date=None):
     """ Calculate interest for stated (yearly) interest rate "rate"
         according to static variables defining method """
+    assert(start_date < end_date)
     if (COMPOUNDING_PERIOD == MONTHLY_COMPOUNDING and
             BILLING_PERIOD == MONTHLY_BILLING):
         return _typeless_round(rate * base / 12)
     if (COMPOUNDING_PERIOD == SEMIMONTHLY_COMPOUNDING and
             BILLING_PERIOD == SEMIMONTHLY_BILLING):
         return _typeless_round(rate * base / 24)
-    if COMPOUNDING_PERIOD == DAILY_COMPOUNDING:
+    if COMPOUNDING_PERIOD == ACTUAL_360_COMPOUNDING:
         days_elapsed = (end_date - start_date).days
         interest = (((rate/360)+1)**(days_elapsed) * base) - base
         return _typeless_round(interest)
+    if COMPOUNDING_PERIOD == ACTUAL_ACTUAL_COMPOUNDING:
+        ####
+        # work
+        total_accrued = 0
+        for y in range(start_date.year, end_date.year + 1):
+            actual_days_in_year = _cast_((datetime.date(y+1,1,1) - datetime.date(y,1,1)).days, rate)
+            actual_elapsed_days = _cast_((min(end_date, datetime.date(y+1, 1, 1)) - max(start_date, datetime.date(y, 1, 1))).days, rate)
+            total_accrued += rate * (actual_elapsed_days / actual_days_in_year) * base
+        return _typeless_round(total_accrued)
 
     raise Exception("Unsupported Compounding Period / Billing Period combo")
 
