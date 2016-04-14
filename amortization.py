@@ -11,11 +11,16 @@ SEMIMONTHLY_COMPOUNDING = "SEMIMONTHLY_COMPOUNDING" # equal rate each half-month
 MONTHLY_BILLING = "MONTHLY_BILLING"
 SEMIMONTHLY_BILLING = "SEMIMONTHLY_BILLING"
 
+ORDINARY_ANNUITY_PMT_METHOD = "ORDINARY_ANNUITY_PMT_METHOD"
+NEWTONS_METHOD = "NEWTONS_METHOD"
+
+
 ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
 ROUNDING_METHOD   = decimal.ROUND_HALF_UP
 
 COMPOUNDING_PERIOD = SEMIMONTHLY_COMPOUNDING
 BILLING_PERIOD     = SEMIMONTHLY_BILLING
+PMT_METHOD         = ORDINARY_ANNUITY_PMT_METHOD
 
 def _typeless_round(n):
     if not ROUNDING_PAYMENTS:
@@ -255,24 +260,27 @@ class Loan:
         return l.period(l.nper).payment - l.period(l.nper-1).payment
 
     def pmt(self):
-        if self.payment:
-            return self.payment
+        if PMT_METHOD == ORDINARY_ANNUITY_PMT_METHOD:
+            return self.payment or pmt(self.rate, self.nper, self.pv, self.typ)
+        else: # NEWTONS_METHOD
+            if self.payment:
+                return self.payment
 
-        # Newton's method? Or something like it.
-        start = pmt(self.rate, self.nper, self.pv, self.typ)
-        diff = self._calc_pmt_diff_(start)
-        iterations = 0
-        while iterations < 50 and abs(diff * 50) > self.nper:
-            # iterate until payment would change by less than 0.02 or
-            # until 50 iterations.
-            iterations += 1
-            start += diff / self.nper
-            start = _typeless_round(start)
+            # Newton's method? Or something like it.
+            start = pmt(self.rate, self.nper, self.pv, self.typ)
             diff = self._calc_pmt_diff_(start)
-        if iterations == 50:
-            logging.warning("Reached 50 iterations when calculating payment.")
-        self.payment = start
-        return start
+            iterations = 0
+            while iterations < 50 and abs(diff * 50) > self.nper:
+                # iterate until payment would change by less than 0.02 or
+                # until 50 iterations.
+                iterations += 1
+                start += diff / self.nper
+                start = _typeless_round(start)
+                diff = self._calc_pmt_diff_(start)
+            if iterations == 50:
+                logging.warning("Reached 50 iterations when calculating payment.")
+            self.payment = start
+            return start
 
 ## this can be one function
 
