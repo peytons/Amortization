@@ -260,18 +260,19 @@ class Loan:
         return l.period(l.nper).payment - l.period(l.nper-1).payment
 
     def pmt(self):
-        if PMT_METHOD == ORDINARY_ANNUITY_PMT_METHOD:
-            return self.payment or pmt(self.rate, self.nper, self.pv, self.typ)
-        else: # NEWTONS_METHOD
-            if self.payment:
-                return self.payment
+        if self.payment:
+            return self.payment
 
-            # Newton's method? Or something like it.
+        if PMT_METHOD == ORDINARY_ANNUITY_PMT_METHOD:
+            return pmt(self.rate, self.nper, self.pv, self.typ)
+        else: # NEWTONS_METHOD
+            # This isn't actually Newton's method, which would use derivatives of our
+            # function, but approximates the derivative by just dividing the difference by number of periods
             start = pmt(self.rate, self.nper, self.pv, self.typ)
             diff = self._calc_pmt_diff_(start)
             iterations = 0
-            while iterations < 50 and abs(diff * 50) > self.nper:
-                # iterate until payment would change by less than 0.02 or
+            while iterations < 50 and abs(diff * 100) > self.nper:
+                # iterate until payment would change by less than 0.01 or
                 # until 50 iterations.
                 iterations += 1
                 start += diff / self.nper
@@ -279,6 +280,10 @@ class Loan:
                 diff = self._calc_pmt_diff_(start)
             if iterations == 50:
                 logging.warning("Reached 50 iterations when calculating payment.")
+            if diff > 0:
+                start += Decimal('0.01')
+                # we want diff to be smallest possible negative number so that last payment
+                # is strictly smaller than usual payment
             self.payment = start
             return start
 
