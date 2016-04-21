@@ -3,10 +3,15 @@ from decimal import Decimal
 import decimal
 import logging
 
-ACTUAL_360_COMPOUNDING = "ACTUAL_360_COMPOUNDING"       # uses Actual / 360 method
-ACTUAL_ACTUAL_COMPOUNDING = "ACTUAL_ACTUAL_COMPOUNDING" # uses Actual / Actual method
-MONTHLY_COMPOUNDING = "MONTHLY_COMPOUNDING"  # equal rate each month
-SEMIMONTHLY_COMPOUNDING = "SEMIMONTHLY_COMPOUNDING" # equal rate each half-month
+"""
+Library to compute appropriate payments, interest, amortization schedules
+All interest is simple interest
+"""
+
+ACTUAL_360_DAYCOUNT = "ACTUAL_360_DAYCOUNT"       # uses Actual / 360 method
+ACTUAL_ACTUAL_DAYCOUNT = "ACTUAL_ACTUAL_DAYCOUNT" # uses Actual / Actual method
+MONTHLY_DAYCOUNT = "MONTHLY_DAYCOUNT"  # equal rate each month
+SEMIMONTHLY_DAYCOUNT = "SEMIMONTHLY_DAYCOUNT" # equal rate each half-month
 
 MONTHLY_BILLING = "MONTHLY_BILLING"
 SEMIMONTHLY_BILLING = "SEMIMONTHLY_BILLING"
@@ -18,7 +23,7 @@ NEWTONS_METHOD = "NEWTONS_METHOD"
 ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
 ROUNDING_METHOD   = decimal.ROUND_HALF_UP
 
-COMPOUNDING_PERIOD = SEMIMONTHLY_COMPOUNDING
+DAYCOUNT_METHOD    = SEMIMONTHLY_DAYCOUNT
 BILLING_PERIOD     = SEMIMONTHLY_BILLING
 PMT_METHOD         = ORDINARY_ANNUITY_PMT_METHOD
 
@@ -58,17 +63,17 @@ def calculate_interest(rate, base, start_date=None, end_date=None):
     """ Calculate interest for stated (yearly) interest rate "rate"
         according to static variables defining method """
     assert(start_date < end_date)
-    if (COMPOUNDING_PERIOD == MONTHLY_COMPOUNDING and
+    if (DAYCOUNT_METHOD == MONTHLY_DAYCOUNT and
             BILLING_PERIOD == MONTHLY_BILLING):
         return _typeless_round(rate * base / 12)
-    if (COMPOUNDING_PERIOD == SEMIMONTHLY_COMPOUNDING and
+    if (DAYCOUNT_METHOD == SEMIMONTHLY_DAYCOUNT and
             BILLING_PERIOD == SEMIMONTHLY_BILLING):
         return _typeless_round(rate * base / 24)
-    if COMPOUNDING_PERIOD == ACTUAL_360_COMPOUNDING:
+    if DAYCOUNT_METHOD == ACTUAL_360_DAYCOUNT:
         days_elapsed = (end_date - start_date).days
         interest = (((rate/360)+1)**(days_elapsed) * base) - base
         return _typeless_round(interest)
-    if COMPOUNDING_PERIOD == ACTUAL_ACTUAL_COMPOUNDING:
+    if DAYCOUNT_METHOD == ACTUAL_ACTUAL_DAYCOUNT:
         ####
         # work
         total_accrued = 0
