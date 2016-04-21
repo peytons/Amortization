@@ -237,11 +237,11 @@ class Loan:
         else: print("typ must be 0 or 1")
 
     # Note that rate here is stated annual interest rate.
-    def __init__(self, rate, nper, pv, date=None, payment=None, typ=0):
+    def __init__(self, rate, nper, pv, interest_start_date=None, payment=None, typ=0):
         self.rate = rate
         self.nper = nper
         self.pv = pv
-        self.date = date
+        self.date = interest_start_date
         self.typ = typ
         self.periods = []
         self.payment = payment
