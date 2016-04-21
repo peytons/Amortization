@@ -265,6 +265,13 @@ class Loan:
         return l.period(l.nper).payment - l.period(l.nper-1).payment
 
     def pmt(self):
+        """
+        Returns the appropriate payment amount for the loan instance.
+        Depending on the PMT_METHOD constant, either uses the ordinary annuity payment calculation
+        method, or a Newton-like method to minimize difference between the very last payment and the
+        penultimate payment (which is the same as the other payments).
+        We optimize for a smaller last payment.
+        """
         if self.payment:
             return self.payment
 
@@ -273,24 +280,24 @@ class Loan:
         else: # NEWTONS_METHOD
             # This isn't actually Newton's method, which would use derivatives of our
             # function, but approximates the derivative by just dividing the difference by number of periods
-            start = pmt(self.rate, self.nper, self.pv, self.typ)
-            diff = self._calc_pmt_diff_(start)
+            starting_pmt = pmt(self.rate, self.nper, self.pv, self.typ)
+            diff = self._calc_pmt_diff_(starting_pmt)
             iterations = 0
             while iterations < 50 and abs(diff * 100) > self.nper:
                 # iterate until payment would change by less than 0.01 or
                 # until 50 iterations.
                 iterations += 1
-                start += diff / self.nper
-                start = _typeless_round(start)
-                diff = self._calc_pmt_diff_(start)
+                starting_pmt += diff / self.nper
+                starting_pmt = _typeless_round(starting_pmt)
+                diff = self._calc_pmt_diff_(starting_pmt)
             if iterations == 50:
                 logging.warning("Reached 50 iterations when calculating payment.")
             if diff > 0:
-                start += Decimal('0.01')
+                starting_pmt += Decimal('0.01')
                 # we want diff to be smallest possible negative number so that last payment
                 # is strictly smaller than usual payment
-            self.payment = start
-            return start
+            self.payment = starting_pmt
+            return self.payment
 
 ## this can be one function
 
