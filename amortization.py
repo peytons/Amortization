@@ -1,19 +1,31 @@
 import datetime
 from decimal import Decimal
 import decimal
+import logging
 
-DAILY_COMPOUNDING = "DAILY_COMPOUNDING"      # uses Actual / 360 method
-MONTHLY_COMPOUNDING = "MONTHLY_COMPOUNDING"  # equal rate each month
-SEMIMONTHLY_COMPOUNDING = "SEMIMONTHLY_COMPOUNDING" # equal rate each half-month
+"""
+Library to compute appropriate payments, interest, amortization schedules
+All interest is simple interest
+"""
+
+ACTUAL_360_DAYCOUNT = "ACTUAL_360_DAYCOUNT"       # uses Actual / 360 method
+ACTUAL_ACTUAL_DAYCOUNT = "ACTUAL_ACTUAL_DAYCOUNT" # uses Actual / Actual method
+MONTHLY_DAYCOUNT = "MONTHLY_DAYCOUNT"  # equal rate each month
+SEMIMONTHLY_DAYCOUNT = "SEMIMONTHLY_DAYCOUNT" # equal rate each half-month
 
 MONTHLY_BILLING = "MONTHLY_BILLING"
 SEMIMONTHLY_BILLING = "SEMIMONTHLY_BILLING"
 
+ORDINARY_ANNUITY_PMT_METHOD = "ORDINARY_ANNUITY_PMT_METHOD"
+NEWTONS_METHOD = "NEWTONS_METHOD"
+
+
 ROUNDING_PAYMENTS = Decimal('0.01')  # Can be 0.01, 0.10, 1.00, 10.00, etc.
 ROUNDING_METHOD   = decimal.ROUND_HALF_UP
 
-COMPOUNDING_PERIOD = SEMIMONTHLY_COMPOUNDING
+DAYCOUNT_METHOD    = SEMIMONTHLY_DAYCOUNT
 BILLING_PERIOD     = SEMIMONTHLY_BILLING
+PMT_METHOD         = ORDINARY_ANNUITY_PMT_METHOD
 
 def _typeless_round(n):
     if not ROUNDING_PAYMENTS:
@@ -41,19 +53,35 @@ def pmt(rate, nper, pv, typ=0):
 def presentValueOfAnnuity(cflw, rate, nper):
     return cflw * ((1 - (1 + rate)**(-nper)) / rate)
 
+def _cast_(castme, typed):
+    if isinstance(typed, Decimal):
+        return Decimal(castme)
+    else:
+        return float(castme)
+
 def calculate_interest(rate, base, start_date=None, end_date=None):
     """ Calculate interest for stated (yearly) interest rate "rate"
         according to static variables defining method """
-    if (COMPOUNDING_PERIOD == MONTHLY_COMPOUNDING and
+    assert(start_date < end_date)
+    if (DAYCOUNT_METHOD == MONTHLY_DAYCOUNT and
             BILLING_PERIOD == MONTHLY_BILLING):
         return _typeless_round(rate * base / 12)
-    if (COMPOUNDING_PERIOD == SEMIMONTHLY_COMPOUNDING and
+    if (DAYCOUNT_METHOD == SEMIMONTHLY_DAYCOUNT and
             BILLING_PERIOD == SEMIMONTHLY_BILLING):
         return _typeless_round(rate * base / 24)
-    if COMPOUNDING_PERIOD == DAILY_COMPOUNDING:
+    if DAYCOUNT_METHOD == ACTUAL_360_DAYCOUNT:
         days_elapsed = (end_date - start_date).days
         interest = (((rate/360)+1)**(days_elapsed) * base) - base
         return _typeless_round(interest)
+    if DAYCOUNT_METHOD == ACTUAL_ACTUAL_DAYCOUNT:
+        ####
+        # work
+        total_accrued = 0
+        for y in range(start_date.year, end_date.year + 1):
+            actual_days_in_year = _cast_((datetime.date(y+1,1,1) - datetime.date(y,1,1)).days, rate)
+            actual_elapsed_days = _cast_((min(end_date, datetime.date(y+1, 1, 1)) - max(start_date, datetime.date(y, 1, 1))).days, rate)
+            total_accrued += rate * (actual_elapsed_days / actual_days_in_year) * base
+        return _typeless_round(total_accrued)
 
     raise Exception("Unsupported Compounding Period / Billing Period combo")
 
@@ -214,11 +242,11 @@ class Loan:
         else: print("typ must be 0 or 1")
 
     # Note that rate here is stated annual interest rate.
-    def __init__(self, rate, nper, pv, date=None, payment=None, typ=0):
+    def __init__(self, rate, nper, pv, interest_start_date=None, payment=None, typ=0):
         self.rate = rate
         self.nper = nper
         self.pv = pv
-        self.date = date
+        self.date = interest_start_date
         self.typ = typ
         self.periods = []
         self.payment = payment
@@ -231,8 +259,48 @@ class Loan:
                    (self.rate, self.nper, self.pv, self.typ))
 
 
+    def _calc_pmt_diff_(self, pmt):
+        """ Difference between last payment and penultimate payment """
+        l = Loan(self.rate, self.nper, self.pv, self.date, payment=pmt)
+        return l.period(l.nper).payment - l.period(l.nper-1).payment
+
     def pmt(self):
-        return self.payment or pmt(self.rate, self.nper, self.pv, self.typ)
+        """
+        Returns the appropriate payment amount for the loan instance.
+        Depending on the PMT_METHOD constant, either uses the ordinary annuity payment calculation
+        method, or a Newton-like method to minimize difference between the very last payment and the
+        penultimate payment (which is the same as the other payments).
+        We optimize for a smaller last payment.
+        """
+        if self.payment:
+            return self.payment
+
+        if PMT_METHOD == ORDINARY_ANNUITY_PMT_METHOD:
+            return pmt(self.rate, self.nper, self.pv, self.typ)
+        else: # NEWTONS_METHOD
+            # This isn't actually Newton's method, which would use derivatives of our
+            # function, but approximates the derivative by just dividing the difference by number of periods
+            starting_pmt = pmt(self.rate, self.nper, self.pv, self.typ)
+            diff = self._calc_pmt_diff_(starting_pmt)
+            iterations = 0
+            while iterations < 50 and abs(diff * 100) > self.nper:
+                # iterate until payment would change by less than 0.01 or
+                # until 50 iterations.
+                iterations += 1
+                starting_pmt += diff / self.nper
+                starting_pmt = _typeless_round(starting_pmt)
+                diff = self._calc_pmt_diff_(starting_pmt)
+            if iterations == 50:
+                logging.warning("Reached 50 iterations when calculating payment.")
+            if diff > 0:
+                starting_pmt += Decimal('0.01')
+                # we want diff to be smallest possible negative number so that last payment
+                # is strictly smaller than usual payment
+            self.payment = starting_pmt
+            return self.payment
+
+    def pmt_as_decimal(self):
+        return Decimal(l.pmt()).quantize(ROUNDING_PAYMENTS)
 
 ## this can be one function
 
