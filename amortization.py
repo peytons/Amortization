@@ -299,6 +299,9 @@ class Loan:
             self.payment = starting_pmt
             return self.payment
 
+    def pmt_as_decimal(self):
+        return Decimal(l.pmt()).quantize(ROUNDING_PAYMENTS)
+
 ## this can be one function
 
     def period(self, period): 
